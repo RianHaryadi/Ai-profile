@@ -1,0 +1,42 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.18
+
+# Database
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+pgvector==0.3.6
+alembic==1.14.1
+
+# AI / RAG
+langchain==0.3.14
+langchain-openai==0.3.0
+langchain-community==0.3.14
+openai==1.59.3
+
+# PDF processing
+pdfplumber==0.11.4
+
+# Auth & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
+
+# Object storage (MinIO)
+minio==7.2.12
+
+# Email
+resend==2.5.1
+
+# QR Code
+qrcode[pil]==8.0
+
+# Stripe
+stripe==11.4.1
+
+# Utils
+python-dotenv==1.0.1
+pydantic-settings==2.7.1
+email-validator==2.2.0
+httpx==0.28.1

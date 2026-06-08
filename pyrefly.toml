@@ -1,0 +1,27 @@
+# Pyrefly configuration
+# Docs: https://pyrefly.org/en/docs/configuration/
+
+python-version = "3.10"
+
+# Use basic preset - only high-confidence errors (syntax, missing imports, etc.)
+# This avoids false positives from SQLAlchemy Column descriptors, passlib, etc.
+preset = "basic"
+
+# Search path for import resolution - backend is the import root
+search-path = [
+  "backend",
+  "C:\\laragon\\bin\\python\\python-3.10\\lib\\site-packages",
+]
+
+# Only check backend Python files
+project-includes = ["backend/**/*.py"]
+
+# Exclude virtual/generated files from analysis
+project-excludes = [
+  "__pyrefly_virtual__/**",
+  "C:/__pyrefly_virtual__/**",
+  "c:/__pyrefly_virtual__/**",
+  "frontend/**",
+  "node_modules/**",
+  ".next/**",
+]
