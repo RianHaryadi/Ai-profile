@@ -34,6 +34,37 @@ class RAGService:
             separators=["\n\n", "\n", ". ", " ", ""],
         )
 
+    def _model_chain(self) -> List[str]:
+        """Ordered list of LLM models to try (fallback router)."""
+        raw = (settings.LLM_MODELS or settings.LLM_MODEL or "").strip()
+        return [m.strip() for m in raw.split(",") if m.strip()]
+
+    def _chat_complete(self, messages, max_tokens, temperature=0.3, **kwargs):
+        """
+        Call the LLM with automatic fallback across the model chain.
+        Tries each model in order; on error or empty reply, moves to the next.
+        Returns the first valid completion, or raises if all models fail.
+        """
+        last_err = None
+        for model in self._model_chain():
+            try:
+                resp = openai_client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    **kwargs,
+                )
+                content = resp.choices[0].message.content
+                if content and content.strip():
+                    print(f"[RAG] LLM responded via: {model}")
+                    return resp
+                print(f"[RAG] Empty reply from {model}, trying next model...")
+            except Exception as e:
+                last_err = e
+                print(f"[RAG] Model {model} failed ({str(e)[:100]}), trying next...")
+        raise last_err or RuntimeError("No LLM model in chain returned a response")
+
     def extract_text_from_pdf(self, pdf_bytes: bytes) -> str:
         """Extract all text from a PDF file."""
         import io
@@ -99,32 +130,25 @@ Kembalikan HANYA teks JSON mentah. Jangan tambahkan penjelasan apa pun."""
         import json
         import re
 
-        # Try with JSON response format first
+        messages = [
+            {"role": "system", "content": "Kamu adalah asisten ekstraksi data JSON yang hanya mengembalikan objek JSON valid."},
+            {"role": "user", "content": prompt}
+        ]
+
+        # Try with JSON response format first (router picks the model)
         try:
-            response = openai_client.chat.completions.create(
-                model=settings.LLM_MODEL,
-                messages=[
-                    {"role": "system", "content": "Kamu adalah asisten ekstraksi data JSON yang hanya mengembalikan objek JSON valid."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.1,
-                response_format={"type": "json_object"}
+            response = self._chat_complete(
+                messages, max_tokens=1500, temperature=0.1,
+                response_format={"type": "json_object"},
             )
             content = response.choices[0].message.content
             return json.loads(content)
         except Exception as e:
             print(f"[RAG] Failed to extract profile with response_format: {e}. Trying fallback...")
-            
+
             # Fallback: call without response_format and clean up markdown blocks
             try:
-                response = openai_client.chat.completions.create(
-                    model=settings.LLM_MODEL,
-                    messages=[
-                        {"role": "system", "content": "Kamu adalah asisten ekstraksi data JSON yang hanya mengembalikan objek JSON valid."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.1
-                )
+                response = self._chat_complete(messages, max_tokens=1500, temperature=0.1)
                 content = response.choices[0].message.content
                 
                 # Extract json code block if wrapped in ```json ... ```
@@ -380,23 +404,10 @@ CONTEXT TAMBAHAN DOKUMEN (Jika ada):
         # Append the current query
         messages.append({"role": "user", "content": query})
 
-        # Set model and token limits based on tier
-        model_name = settings.LLM_MODEL
-        max_tokens = 500
-        
-        if tier == "standard":
-            max_tokens = 150
-            # If using Groq Free, route to llama-3 free model
-            if "groq" in (settings.OPENAI_BASE_URL or "").lower():
-                model_name = "llama3-8b-8192"
+        # Token limit based on tier (the router picks the model automatically)
+        max_tokens = 400 if tier == "standard" else 500
 
-        response = openai_client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=0.3,
-        )
-
+        response = self._chat_complete(messages, max_tokens=max_tokens, temperature=0.3)
         return response.choices[0].message.content
 
     async def chat(
@@ -420,8 +431,14 @@ CONTEXT TAMBAHAN DOKUMEN (Jika ada):
         user = user_result.scalar_one_or_none()
         tier = (user.subscription_tier or "standard").lower() if user else "standard"
 
-        # Find relevant context
-        context_chunks = await self.similarity_search(db, query, user_id)
+        # Find relevant context.
+        # Embeddings may be unavailable (e.g. chat-only LLM proxy with no embedding
+        # provider). In that case fall back to answering from profile data only.
+        try:
+            context_chunks = await self.similarity_search(db, query, user_id)
+        except Exception as e:
+            print(f"[RAG] Similarity search skipped (embedding unavailable): {e}")
+            context_chunks = []
 
         # Generate response
         response = await self.generate_response(query, context_chunks, profile_name, profile, history, tier=tier)

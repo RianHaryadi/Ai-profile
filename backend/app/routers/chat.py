@@ -1,5 +1,4 @@
-from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -10,32 +9,6 @@ from app.models.profile import Profile
 from app.services.rag import rag_service
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
-
-
-# Simple in-memory rate limiter
-# Key: (slug, client_ip), Value: list of datetime timestamps of messages
-chat_rate_limits = {}
-
-def check_chat_rate_limit(slug: str, ip: str, tier: str) -> bool:
-    now = datetime.now(timezone.utc)
-    one_hour_ago = now - timedelta(hours=1)
-    
-    key = (slug, ip)
-    if key not in chat_rate_limits:
-        chat_rate_limits[key] = []
-        
-    # Clean up timestamps older than 1 hour
-    chat_rate_limits[key] = [t for t in chat_rate_limits[key] if t > one_hour_ago]
-    
-    # Determine limit based on tier
-    limit = 10 if tier == "standard" else 50
-    
-    if len(chat_rate_limits[key]) >= limit:
-        return False
-        
-    # Record current message timestamp
-    chat_rate_limits[key].append(now)
-    return True
 
 
 class ChatRequest(BaseModel):
@@ -52,7 +25,6 @@ class ChatResponse(BaseModel):
 async def chat_with_card(
     slug: str,
     data: ChatRequest,
-    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -73,16 +45,6 @@ async def chat_with_card(
         raise HTTPException(
             status_code=403,
             detail="Maaf, kartu bisnis ini sedang tidak aktif.",
-        )
-
-    # Check rate limit per IP based on tier
-    client_ip = request.client.host if request.client else "unknown"
-    tier = (user.subscription_tier or "standard").lower()
-    if not check_chat_rate_limit(slug, client_ip, tier):
-        limit = 10 if tier == "standard" else 50
-        raise HTTPException(
-            status_code=429,
-            detail=f"Batas obrolan terlampaui. Paket {tier.capitalize()} membatasi {limit} pesan per IP per jam."
         )
 
     # Get profile name for context

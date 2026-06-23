@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   role: "user" | "assistant";
@@ -30,12 +31,16 @@ export default function ChatBot({
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    // Scroll only the messages container, not the whole page.
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
+  }, [messages, isLoading]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading || !isActive) return;
@@ -117,7 +122,7 @@ export default function ChatBot({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 bg-slate-50/30">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 bg-slate-50/30">
         {messages.map((msg, idx) => (
           <div
             key={idx}
@@ -136,13 +141,19 @@ export default function ChatBot({
               </div>
             )}
             <div
-              className={`p-3.5 text-xs sm:text-sm leading-relaxed rounded-2xl whitespace-pre-line shadow-sm border ${
-                msg.role === "user" 
-                  ? "bg-accent-primary text-white rounded-tr-none border-transparent" 
+              className={`p-3.5 text-xs sm:text-sm leading-relaxed rounded-2xl shadow-sm border ${
+                msg.role === "user"
+                  ? "bg-accent-primary text-white rounded-tr-none border-transparent whitespace-pre-line"
                   : "bg-white border-slate-200 text-slate-800 rounded-tl-none"
               }`}
             >
-              {msg.content}
+              {msg.role === "user" ? (
+                msg.content
+              ) : (
+                <div className="[&_p]:m-0 [&_p:not(:last-child)]:mb-2 [&_ul]:my-1 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:my-1 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:mb-1 [&_strong]:font-semibold [&_a]:text-accent-primary [&_a]:underline [&_h1]:font-bold [&_h2]:font-bold [&_h3]:font-semibold">
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -161,8 +172,6 @@ export default function ChatBot({
             </div>
           </div>
         )}
-
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Preset Questions */}

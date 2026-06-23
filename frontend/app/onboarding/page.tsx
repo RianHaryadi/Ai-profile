@@ -33,7 +33,7 @@ function OnboardingContent() {
   const [isComplete, setIsComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(true);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Recovery States
   const [recoveryLoading, setRecoveryLoading] = useState(false);
@@ -64,7 +64,11 @@ function OnboardingContent() {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Scroll only the messages container, not the whole page.
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    }
   }, [messages]);
 
   const verifyAccess = async () => {
@@ -416,7 +420,7 @@ function OnboardingContent() {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 bg-slate-50/30">
+          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 bg-slate-50/30">
             {messages.map((msg, idx) => (
               <div
                 key={idx}
@@ -457,7 +461,6 @@ function OnboardingContent() {
               </div>
             )}
 
-            <div ref={messagesEndRef} />
           </div>
 
           {/* Chat Controls / Input */}

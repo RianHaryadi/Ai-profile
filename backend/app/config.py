@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str | None = None
     LLM_MODEL: str = "gpt-4o-mini"
+    # Fallback chain (comma-separated). Router tries each in order until one
+    # returns a valid answer. Overrides LLM_MODEL for chat when set.
+    LLM_MODELS: str = (
+        "antigravity/gemini-2.5-flash,"
+        "antigravity/gemini-3.1-flash-lite,"
+        "antigravity/gpt-oss-120b-medium,"
+        "ds-web/deepseek-chat,"
+        "antigravity/claude-sonnet-4-6"
+    )
     EMBEDDING_MODEL: str = "text-embedding-3-small"
     EMBEDDING_DIMENSIONS: int = 1536
 
